@@ -1,0 +1,133 @@
+// Copies a BMP file
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "bmp.h"
+
+int main(int argc, char* argv[])
+{
+    //ensure proper usage
+    if (argc != 2)
+    {
+     fprintf(stderr, "Please enter raw file only\n");
+     return 1;
+    }
+
+    //open input file
+    FILE *inptr = fopen(argv[1], "r");
+    if (inptr == NULL)
+    {
+        fprintf(stderr, "Could not open file.\n");
+        return 2;
+    }
+
+    //store the current jpg name in jpg_count, initialize variable here
+    int jpg_count = 0;
+
+    //store the current jpg starting position in pointer jpg_pos, initialize variable here
+
+    //store the number of blocks for jpg
+    int jpg_block = 0;
+
+    //store the current status of jpg in variable is_jpg, where 1 is true and 0 is false
+    int is_jpg = 0;
+
+    //temporary variable buffer to store each block of memory data
+    BYTE buffer[512];
+
+    //iterate over memory
+    while (fread(&buffer, 512, 1, inptr) == 1)
+    {
+      //fseek(inptr,-512,SEEK_CUR);
+
+      //read a full block and stores it into a BYTE variable buffer
+      //fread(&buffer,512,1,inptr);
+
+      //test if this block represents a new jpg
+
+      if(buffer[0]==0xff && buffer[1]==0xd8 && buffer[2]==0xff && (buffer[3] & 0xf0)==0xe0)
+
+      // scenario when this block represents a new jpg
+      {
+          //check if a jpg is already in the process of recovering
+          if(is_jpg == 0)
+          //no jpg is in the process of recovering
+          {
+              //store the starting position, jpg name, jpg blocks and jpg status
+
+              jpg_count += 1;
+              is_jpg = 1;
+              jpg_block = 1;
+          }
+          //a jpg already is in the process of recovering
+          else
+          {
+              //go back to the position of the previous jpg
+              fseek(inptr, -512*(jpg_block+1), SEEK_CUR);
+              //create a temporary variable to store jpg
+              BYTE jpg_temp[512*jpg_block];
+              //read all the info for previous jpg
+              fread(&jpg_temp,512,jpg_block,inptr);
+              //create a temporary variable to store the name of the file
+              char jpg_name[8];
+              //store the jpg name in the temp variable
+              sprintf(jpg_name, "%03i.jpg", jpg_count);
+              //create ouput file
+              FILE *outptr = fopen(jpg_name, "w");
+              //write output file
+              fwrite(&jpg_temp,512,jpg_block,outptr);
+              //close output file
+              fclose(outptr);
+
+              //return pointer to the original position
+              fseek(inptr, 512, SEEK_CUR);
+
+              //now update the starting position, jpg name, jpg blocks and jpg status
+
+              //jpg_pos = &buffer;     ????
+
+              jpg_count += 1;
+              is_jpg = 1;
+              jpg_block = 1;
+          }
+
+      }
+      //scenario when this block represents no new jpg is detected
+      else
+      {
+          //scenario when a jpg is already in process of recovering
+          if(is_jpg == 1)
+          {
+            //update the number of blocks in current jpg
+            jpg_block += 1;
+          }
+          //scenario when a jpg is not detected
+
+      }
+
+    }
+
+    if(is_jpg ==1){
+              fseek(inptr, -512*(jpg_block), SEEK_CUR);
+              //create a temporary variable to store jpg
+              BYTE jpg_temp[512*jpg_block];
+              //read all the info for previous jpg
+              fread(&jpg_temp,512,jpg_block,inptr);
+              //create a temporary variable to store the name of the file
+              char jpg_name[8];
+              //store the jpg name in the temp variable
+              sprintf(jpg_name, "%03i.jpg", jpg_count);
+              //create ouput file
+              FILE *outptr = fopen(jpg_name, "w");
+              //write output file
+              fwrite(&jpg_temp,512,jpg_block,outptr);
+              //close output file
+              fclose(outptr);
+    }
+
+    //close infile
+    fclose(inptr);
+
+    //success
+    return 0;
+}
