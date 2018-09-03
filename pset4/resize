@@ -1,0 +1,255 @@
+// Copies a BMP file
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "bmp.h"
+
+int main(int argc, char *argv[])
+{
+    // ensure proper usage
+    if (argc != 4)
+    {
+        fprintf(stderr, "Usage: copy infile outfile\n");
+        return 1;
+    }
+
+    float n = atof(argv[1]);
+
+    if ( n >100 ){
+        fprintf(stderr, "Resize ratio must be a positive number no greater than 100 .\n");
+        return 1;
+    }
+
+    // remember filenames
+    char *infile = argv[2];
+    char *outfile = argv[3];
+
+    // open input file
+    FILE *inptr = fopen(infile, "r");
+    if (inptr == NULL)
+    {
+        fprintf(stderr, "Could not open %s.\n", infile);
+        return 1;
+    }
+
+    // open output file
+    FILE *outptr = fopen(outfile, "w");
+    if (outptr == NULL)
+    {
+        fclose(inptr);
+        fprintf(stderr, "Could not create %s.\n", outfile);
+        return 1;
+    }
+
+    // read infile's BITMAPFILEHEADER
+    BITMAPFILEHEADER bf;
+    fread(&bf, sizeof(BITMAPFILEHEADER), 1, inptr);
+
+    // read infile's BITMAPINFOHEADER
+    BITMAPINFOHEADER bi;
+    fread(&bi, sizeof(BITMAPINFOHEADER), 1, inptr);
+
+    // ensure infile is (likely) a 24-bit uncompressed BMP 4.0
+    if (bf.bfType != 0x4d42 || bf.bfOffBits != 54 || bi.biSize != 40 ||
+        bi.biBitCount != 24 || bi.biCompression != 0)
+    {
+        fclose(outptr);
+        fclose(inptr);
+        fprintf(stderr, "Unsupported file format.\n");
+        return 1;
+    }
+
+
+    // determine the original padding for scanlines
+    int orig_padding = (4 - (bi.biWidth * sizeof(RGBTRIPLE)) % 4) % 4;
+
+    // update the new image width and height
+    long orig_Width=bi.biWidth;
+    long orig_Height=bi.biHeight;
+
+    // if n<1, then shrinks the img
+
+    if (n<1)
+    {
+        // round the adjusted width and height to integers
+        bi.biWidth = lrintf(bi.biWidth*n);
+        bi.biHeight = lrintf(bi.biHeight*n);
+
+        // determine the horizontal/vertical step of shrink process in the orginal img
+        int step_h = round(origWidth/(bi.biWidth));
+        int step_v = round(origHeight/(bi.biHeight));
+
+
+        // determine the new padding for updated file
+        int new_padding = (4 - (width * sizeof(RGBTRIPLE)) % 4) % 4;
+
+        //update bisize and bfsize
+
+        bi.biSizeImage=((sizeof(RGBTRIPLE) * bi.biWidth) + new_padding) * abs(bi.biHeight);
+        bf.bfSize= bi.biSizeImage + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+
+        // write outfile's BITMAPFILEHEADER
+        fwrite(&bf, sizeof(BITMAPFILEHEADER), 1, outptr);
+
+        // write outfile's BITMAPINFOHEADER
+        fwrite(&bi, sizeof(BITMAPINFOHEADER), 1, outptr);
+
+    // iterate over infile's scanlines
+    for (int i = 0, i < labs(bi.biHeight); i++)
+    {
+
+        // iterate over pixels in scanline
+        for (int j = 0; j < bi.biWidth; j++)
+        {
+            // temporary storage
+            RGBTRIPLE triple;
+            // read RGB triple from infile
+            fread(&triple, sizeof(RGBTRIPLE), 1, inptr);
+            // write RGB triple to outfile
+            fwrite(&triple, sizeof(RGBTRIPLE), 1, outptr);
+            // skip over the step between each new pixel
+            fseek(inptr, step_h, SEEK_CUR);
+        }
+
+
+        // skip over padding(in the reading file), if any
+        fseek(inptr, orig_padding, SEEK_CUR);
+
+        // then add it back (to demonstrate how)
+        for (int k = 0; k < new_padding; k++)
+        {
+            fputc(0x00, outptr);
+        }
+
+        // determine the number of bytes to be skipped each vertical step
+        int skip_v = (origWidth+orig_padding)*(step_v);
+
+        fseek(inptr, skip_v, SEEK_CUR);
+
+    }
+
+    // close infile
+    fclose(inptr);
+
+    // close outfile
+    fclose(outptr);
+
+    // success
+    return 0;
+
+    }
+
+    //if we were to expand the image
+    else
+    {
+    // round the expanded to width and height to long integers
+    bi.biWidth = lrintf(bi.biWidth*n);
+    bi.biHeight = lrintf(bi.biHeight*n);
+
+    // determine the horizontal/vertical step of shrink process in the orginal img
+    int step_h = round((bi.biWidth)/origWidth);
+    int step_v = round((bi.biHeight)/origHeight);
+
+    // Keep track of the number of pixels to be expanded at the end of each row
+    int track_h = bi.biWidth - origWidth;
+    int track_v = bi.Height - origHeight;
+
+    // determine the new padding for updated file
+    int new_padding = (4 - (bi.biWidth * sizeof(RGBTRIPLE)) % 4) % 4;
+
+    //update bisize and bfsize
+
+    bi.biSizeImage=((sizeof(RGBTRIPLE) * bi.biWidth) + new_padding) * abs(bi.biHeight);
+    bf.bfSize= bi.biSizeImage + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+
+    // write outfile's BITMAPFILEHEADER
+    fwrite(&bf, sizeof(BITMAPFILEHEADER), 1, outptr);
+
+    // write outfile's BITMAPINFOHEADER
+    fwrite(&bi, sizeof(BITMAPINFOHEADER), 1, outptr);
+
+
+    // iterate over infile's scanlines
+    for (int i = 0, biHeight = labs(orig_Height); i < biHeight; i++)
+    {
+        // create an array ARR to temporarily stores the pixels of a row to be resized
+
+        RGBTRIPLE *ARR;
+        ARR = malloc(sizeof(RGBTRIPLE)*(bi.biWidth));
+
+
+
+        // iterate over pixels in scanline until the last element
+        for (int j = 0; j < orig_Width-1; j++)
+        {
+        // temporary storage
+            RGBTRIPLE triple;
+            // read RGB triple from infile
+            fread(&triple, sizeof(RGBTRIPLE), 1, inptr);
+
+            //Expand the original bmp file horizontally by factor step_h
+            for (int m=0; m<step_h; m++)
+            {
+             // write RGB triple to outfile
+             fwrite(&triple, sizeof(RGBTRIPLE), 1, outptr);
+
+             //store the pixels in ARR
+             // temporary storage
+
+             ARR[j*step_h+m] = triple;
+
+            }
+
+        }
+        // expand the last element
+        fread(&triple, sizeof(RGBTRIPLE), 1, inptr);
+        for (int o = 0; o< track_h; o++){
+            fwrite(&triple, sizeof(RGBTRIPLE), 1, outptr);
+            ARR[orig_Width - 1] = triple;
+        }
+
+
+
+
+        // skip over padding(in the reading file), if any
+        fseek(inptr, orig_padding, SEEK_CUR);
+
+        // then add it back (to demonstrate how)
+        for (int k = 0; k < new_padding; k++)
+        {
+            fputc(0x00, outptr);
+        }
+
+
+        // rewrite from the array
+        for (int s=0; s<n-1; s++)
+        {
+
+        //expand vertically
+            for (int l=0; l<(bi.biWidth); l++)
+            {
+             RGBTRIPLE tr = ARR[l];
+             fwrite(&tr,sizeof(RGBTRIPLE),1, outptr);
+            }
+            for (int k = 0; k < new_padding; k++)
+            {
+             fputc(0x00, outptr);
+            }
+        }
+    }
+
+
+
+    // close infile
+    fclose(inptr);
+
+    // close outfile
+    fclose(outptr);
+
+    // success
+    return 0;
+    }
+
+
+}
